@@ -23,3 +23,4 @@ class UserUpdateAPIView(UpdateAPIView):
 class UserDestroyAPIView(DestroyAPIView):
     serializer_class = UserSerializer
     queryset = TrackerUser.objects.all()
+
