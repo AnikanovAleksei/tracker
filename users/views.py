@@ -1,4 +1,4 @@
-from rest_framework.generics import CreateAPIView, RetrieveAPIView, UpdateAPIView, DestroyAPIView
+from rest_framework.generics import CreateAPIView
 
 
 from users.models import TrackerUser
@@ -9,18 +9,8 @@ class UserCreateAPIView(CreateAPIView):
     serializer_class = UserSerializer
     queryset = TrackerUser.objects.all()
 
-
-class UserRetrieveAPIView(RetrieveAPIView):
-    serializer_class = UserSerializer
-    queryset = TrackerUser.objects.all()
-
-
-class UserUpdateAPIView(UpdateAPIView):
-    serializer_class = UserSerializer
-    queryset = TrackerUser.objects.all()
-
-
-class UserDestroyAPIView(DestroyAPIView):
-    serializer_class = UserSerializer
-    queryset = TrackerUser.objects.all()
-
+    def perform_create(self, serializer):
+        password = serializer.validated_data['password']
+        user = serializer.save(is_active=True)
+        user.set_password(password)
+        user.save()

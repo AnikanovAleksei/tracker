@@ -30,7 +30,6 @@ class Tracker(models.Model):
                                            verbose_name='Время на выполнение (в секундах)', null=True, blank=True,)
     is_public = models.BooleanField(default=False, verbose_name='Признак публичности')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='Дата создания')
-    next_reminder = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         verbose_name = 'Привычка'
