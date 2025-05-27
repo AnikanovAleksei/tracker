@@ -1,3 +1,4 @@
+from rest_framework import status
 from rest_framework.generics import CreateAPIView, ListAPIView, DestroyAPIView, UpdateAPIView, RetrieveAPIView
 from rest_framework.permissions import IsAuthenticated
 from django.db import models
@@ -6,7 +7,6 @@ from tracker.models import Tracker
 from tracker.paginators import TrackerPaginator
 from tracker.permissions import IsOwnerOrPublicReadOnly
 from tracker.serializers import TrackerSerializer, PublicTrackerSerializer
-from rest_framework.response import Response
 
 
 class HabitCreateAPIView(CreateAPIView):
@@ -16,7 +16,11 @@ class HabitCreateAPIView(CreateAPIView):
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
-        return Response({"status": "Habit created"})
+
+    def create(self, request, *args, **kwargs):
+        response = super().create(request, *args, **kwargs)
+        response.status_code = status.HTTP_201_CREATED
+        return response
 
 
 class HabitListAPIView(ListAPIView):

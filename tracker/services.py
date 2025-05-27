@@ -3,9 +3,6 @@ from django.conf import settings
 
 
 def send_telegram_message(chat_id: int, message: str) -> bool:
-    if not chat_id:
-        return False
-
     url = f"{settings.TELEGRAM_URL}{settings.TELEGRAM_TOKEN}/sendMessage"
     try:
         response = requests.post(
@@ -17,6 +14,6 @@ def send_telegram_message(chat_id: int, message: str) -> bool:
             },
             timeout=5
         )
-        return response.status_code == 200
+        return response.ok
     except requests.RequestException:
         return False

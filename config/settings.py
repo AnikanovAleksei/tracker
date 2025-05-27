@@ -1,5 +1,4 @@
 from datetime import timedelta
-
 from dotenv import load_dotenv
 from pathlib import Path
 import os
@@ -154,11 +153,12 @@ CELERY_TASK_TRACK_STARTED = True
 CELERY_TASK_TIME_LIMIT = 30 * 60
 
 CELERY_BEAT_SCHEDULE = {
-    'task-name': {
-        'task': 'users.tasks.block_inactive_users',
+    'habit-reminders': {
+        'task': 'tracker.tasks.check_and_send_habit_reminders',
         'schedule': timedelta(minutes=10),
     },
 }
+
 
 TELEGRAM_URL = 'https://api.telegram.org/bot'
 TELEGRAM_TOKEN = os.getenv('BOT_TOKEN')
