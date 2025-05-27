@@ -14,6 +14,6 @@ def send_telegram_message(chat_id: int, message: str) -> bool:
             },
             timeout=5
         )
-        return response.status_code == 200
+        return response.ok
     except requests.RequestException:
         return False
