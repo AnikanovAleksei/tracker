@@ -15,8 +15,7 @@ class TrackerModelTest(TestCase):
             action="Test action",
             place="Test place",
             periodicity=7,
-            duration=30,
-            next_reminder=timezone.now() + timedelta(days=1)
+            duration=30
         )
         self.habit_data = {
             "action": "New habit",
@@ -27,7 +26,7 @@ class TrackerModelTest(TestCase):
 
     def test_habit_creation(self):
         self.assertEqual(self.habit.action, "Test action")
-        self.assertTrue(self.habit.next_reminder > timezone.now())
+        self.assertEqual(self.habit.periodicity, 7)
 
     def test_pleasant_habit_validation(self):
         pleasant_habit = Tracker(
@@ -35,8 +34,7 @@ class TrackerModelTest(TestCase):
             action="Pleasant",
             is_pleasant=True,
             reward="Invalid reward",
-            periodicity=7,
-            next_reminder=timezone.now() + timedelta(days=1)
+            periodicity=7
         )
         with self.assertRaises(ValidationError):
             pleasant_habit.full_clean()
@@ -46,8 +44,7 @@ class TrackerModelTest(TestCase):
             user=self.user,
             action="Main",
             is_pleasant=False,
-            periodicity=7,
-            next_reminder=timezone.now() + timedelta(days=1)
+            periodicity=7
         )
         with self.assertRaises(ValidationError):
             main_habit.related_habit = self.habit
