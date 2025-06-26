@@ -2,8 +2,6 @@ from django.test import TestCase
 from django.core.exceptions import ValidationError
 from tracker.models import Tracker
 from users.models import TrackerUser
-from django.utils import timezone
-from datetime import timedelta
 from tracker.serializers import TrackerSerializer, PublicTrackerSerializer
 
 
