@@ -47,7 +47,7 @@ services:
     command: >
       bash -c "celery -A config worker --loglevel=info"
     env_file:
-      - deploy/.env
+      - .env
     depends_on:
       db:
         condition: service_healthy
