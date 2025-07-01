@@ -75,15 +75,15 @@ jobs:
           run: |
             ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USER }}@${{ secrets.SERVER_IP }} << 'EOF'
             # Login to Docker Hub on server
-            echo ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }} | docker login -u ${{ secrets.DOCKER_HUB_USERNAME }} --password-stdin
-
-            # Pull image with authentication
-            docker pull ${{ secrets.DOCKER_HUB_USERNAME }}/myapp:${{ github.sha }} || exit 1
-
-            # Stop and remove existing container if exists
-            docker stop myapp || true
-            docker rm myapp || true
-
-            # Run new container
-            docker run -d --name myapp -p 80:8000 ${{ secrets.DOCKER_HUB_USERNAME }}/myapp:${{ github.sha }}
+            echo "TAG=${{ github.sha }}" >> .env
+            echo "IMAGE=${{ secrets.DOCKER_HUB_USERNAME }}" >> .env
+            echo "DJANGO_SECRET_KEY=${{ secrets.DJANGO_SECRET_KEY }}" >> .env
+            echo "DEBUG=False" >> .env
+            echo "DOCKER_HUB_ACCESS_TOKEN=${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}" >> .env
+            
+            docker compose -f docker-compose.prod.yml pull 
+            docker compose -f docker-compose.prod.yml down
+            docker compose -f docker-compose.prod.yml up -d --remove-orphans
+            docker image prune -f 
+            
             EOF

@@ -1,14 +1,15 @@
 services:
   web:
-    build: .
+    image: ${IMAGE}/myapp:${TAG}
     command: >
       bash -c "sleep 5 && 
       python manage.py migrate && 
       python manage.py runserver 0.0.0.0:8000"
     env_file:
-      - .env
+      - deploy/.env
+    environment:
+      DEBUG: False
     volumes:
-#      - .:/code
       - static_volume:/app/static_collected
     ports:
       - "8000:8000"
@@ -20,26 +21,22 @@ services:
 
   db:
     image: postgres:17
-#    env_file:
-#      - .env
     environment:
       POSTGRES_DB: ${NAME}
-      POSTGRES_USER: ${DB_USER}
+      POSTGRES_USER: ${USER}
       POSTGRES_PASSWORD: ${PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data/
     ports:
       - "5435:5432"
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U ${DB_USER} -d ${NAME}" ]
-      interval: 5s
+      test: [ "CMD-SHELL", "pg_isready -U ${USER} -d ${NAME}" ]
+      interval: 3s
       timeout: 5s
-      retries: 10
+      retries: 5
 
   redis:
     image: redis:6.2.4-alpine
-#    ports:
-#      - "6379:6379"
     healthcheck:
       test: [ "CMD", "redis-cli", "ping" ]
       interval: 3s
@@ -47,13 +44,11 @@ services:
       retries: 5
 
   celery:
-    build: .
+    image: ${IMAGE}/myapp:${TAG}
     command: >
       bash -c "celery -A config worker --loglevel=info"
     env_file:
-      - .env
-#    volumes:
-#      - .:/code
+      - deploy/.env
     depends_on:
       db:
         condition: service_healthy
@@ -61,13 +56,11 @@ services:
         condition: service_healthy
 
   celery_beat:
-    build: .
+    image: ${IMAGE}/myapp:${TAG}
     command: >
       bash -c "celery -A config beat --loglevel=info"
     env_file:
-      - .env
-#    volumes:
-#      - .:/code
+      - deploy/.env
     depends_on:
       db:
         condition: service_healthy
@@ -79,7 +72,7 @@ services:
     ports:
       - "80:80"
     volumes:
-      - ./nginx.conf:/etc/nginx/conf.d/default.conf
+      - ./nginx.conf:/etc/nginx/nginx.conf
       - static_volume:/code/static
     depends_on:
       web:
