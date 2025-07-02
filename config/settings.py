@@ -84,8 +84,8 @@ else:
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.postgresql_psycopg2',
-            'NAME': os.getenv('NAME'),
-            'USER': os.getenv('DB_USER'),
+            'NAME': os.getenv('DB_NAME'),
+            'USER': os.getenv('USER'),
             'PASSWORD': os.getenv('PASSWORD'),
             'HOST': os.getenv('HOST'),
             'PORT': os.getenv('PORT')
@@ -125,8 +125,9 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/5.1/howto/static-files/
 
 STATIC_URL = '/static/'
-STATICFILES_DIRS = [BASE_DIR / 'static']
-STATIC_ROOT = BASE_DIR / 'static_collected'
+STATIC_ROOT = '/app/static_collected'  # Абсолютный путь!
+STATICFILES_DIRS = ['/app/static']  # Абсолютный путь
+
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
