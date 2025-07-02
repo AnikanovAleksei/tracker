@@ -72,7 +72,7 @@ jobs:
 
       - name: Copy docker-compose.prod.yml to server
         run: |
-          scp docker-compose.prod.yml ${{ secrets.SSH_USER }}@${{ secrets.SERVER_IP }}:/app/docker-compose.prod.yml
+          scp -o StrictHostKeyChecking=no docker-compose.prod.yml ${{ secrets.SSH_USER }}@${{ secrets.SERVER_IP }}:/app/docker-compose.prod.yml
 
       - name: Deploy on server
         run: |
