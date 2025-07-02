@@ -63,7 +63,7 @@ jobs:
 
   deploy:
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
 
     steps:
       - name: Set up SSH
@@ -74,21 +74,26 @@ jobs:
       - name: Deploy on server
         run: |
           ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USER }}@${{ secrets.SERVER_IP }} << 'EOF'
-          # Login to Docker Hub on server
-          echo "TAG=${{ github.sha }}" >> .env
-          echo "IMAGE=${{ secrets.DOCKER_HUB_USERNAME }}" >> .env
-          echo "DJANGO_SECRET_KEY=${{ secrets.DJANGO_SECRET_KEY }}" >> .env
-          echo "DEBUG=False" >> .env
-          echo "DOCKER_HUB_ACCESS_TOKEN=${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}" >> .env
-          echo "NAME=${{ secrets.DB_NAME }}" >> .env
-          echo "DB_USER=${{ secrets.DB_USER }}" >> .env
-          echo "PASSWORD=${{ secrets.DB_PASSWORD }}" >> .env
-          echo "HOST=${{ secrets.DB_HOST }}" >> .env
-          echo "PORT=${{ secrets.DB_PORT }}" >> .env
-        
+          set -e
+
+          # Create .env file
+          cat > .env << 'EOL'
+          TAG=${{ github.sha }}
+          IMAGE=${{ secrets.DOCKER_HUB_USERNAME }}
+          DJANGO_SECRET_KEY=${{ secrets.DJANGO_SECRET_KEY }}
+          DEBUG=False
+          NAME=${{ secrets.DB_NAME }}
+          DB_USER=${{ secrets.DB_USER }}
+          PASSWORD=${{ secrets.DB_PASSWORD }}
+          HOST=${{ secrets.DB_HOST }}
+          PORT=${{ secrets.DB_PORT }}
+          EOL
+
+          echo ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }} | docker login -u ${{ secrets.DOCKER_HUB_USERNAME }} --password-stdin
+
           docker compose -f docker-compose.prod.yml pull
           docker compose -f docker-compose.prod.yml down
           docker compose -f docker-compose.prod.yml up -d --remove-orphans
           docker image prune -f
-        
+
           EOF
