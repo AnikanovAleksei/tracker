@@ -73,39 +73,43 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.SSH_KEY }}
 
-      - name: Create app directory structure on server
+      - name: Create app directory on server
         run: |
-          ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USER }}@${{ secrets.SERVER_IP }} << 'EOF'
-          set -e
-          mkdir -p /app/etc/nginx
-          mkdir -p /app/static_files
-          EOF
+          ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USER }}@${{ secrets.SERVER_IP }} "mkdir -p /app"
 
-      - name: Copy compose file to server
+      - name: Copy files to server
         run: |
           scp -o StrictHostKeyChecking=no docker-compose.prod.yml ${{ secrets.SSH_USER }}@${{ secrets.SERVER_IP }}:/app/docker-compose.prod.yml
 
-      - name: Copy nginx configuration
+      - name: Verify nginx.conf exists locally
         run: |
-          scp -o StrictHostKeyChecking=no nginx.conf ${{ secrets.SSH_USER }}@${{ secrets.SERVER_IP }}:/app/etc/nginx/nginx.conf
+          if [ ! -f "nginx.conf" ]; then
+            echo "nginx.conf not found in repository!"
+            exit 1
+          fi
 
-      - name: Verify files on server
+      - name: Copy nginx.conf to server
+        run: |
+          scp -o StrictHostKeyChecking=no nginx.conf ${{ secrets.SSH_USER }}@${{ secrets.SERVER_IP }}:/app/nginx.conf
+
+      # Новый шаг: Проверка и очистка старых контейнеров
+      - name: Cleanup old containers
         run: |
           ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USER }}@${{ secrets.SERVER_IP }} << 'EOF'
           set -e
-          echo "Checking files:"
-          ls -la /app
-          ls -la /app/etc/nginx
-          test -f /app/docker-compose.prod.yml || exit 1
-          test -f /app/etc/nginx/nginx.conf || exit 1
+          cd /app
+          docker-compose -f docker-compose.prod.yml down --remove-orphans || true
           EOF
 
-      - name: Update compose file paths
+      # Новый шаг: Проверка файлов на сервере
+      - name: Verify server files
         run: |
           ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USER }}@${{ secrets.SERVER_IP }} << 'EOF'
           set -e
-          sed -i 's|\./nginx\.conf|/app/etc/nginx/nginx.conf|g' /app/docker-compose.prod.yml
-          sed -i 's|\./static_volume|/app/static_files|g' /app/docker-compose.prod.yml
+          echo "Server files:"
+          ls -la /app
+          test -f /app/docker-compose.prod.yml || { echo "docker-compose.prod.yml missing!"; exit 1; }
+          test -f /app/nginx.conf || { echo "nginx.conf missing!"; exit 1; }
           EOF
 
       - name: Deploy application
@@ -114,7 +118,7 @@ jobs:
           set -e
           cd /app
 
-          # Create .env file
+          # Создаем .env файл
           cat > .env << 'EOL'
           TAG=${{ github.sha }}
           IMAGE=${{ secrets.DOCKER_HUB_USERNAME }}
@@ -127,10 +131,20 @@ jobs:
           DB_PORT=5432
           EOL
 
-          # Login and deploy
+          # Логинимся и запускаем
           echo ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }} | docker login -u ${{ secrets.DOCKER_HUB_USERNAME }} --password-stdin
-          docker-compose -f /app/docker-compose.prod.yml pull
-          docker-compose -f /app/docker-compose.prod.yml down
-          docker-compose -f /app/docker-compose.prod.yml up -d --remove-orphans
+          docker-compose -f docker-compose.prod.yml pull
+          docker-compose -f docker-compose.prod.yml up -d --remove-orphans
           docker image prune -f
+          EOF
+
+      # Новый шаг: Проверка работы контейнеров
+      - name: Verify deployment
+        run: |
+          ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USER }}@${{ secrets.SERVER_IP }} << 'EOF'
+          set -e
+          echo "Running containers:"
+          docker ps
+          echo "Nginx logs:"
+          docker logs $(docker ps -qf "name=nginx") --tail 20
           EOF
