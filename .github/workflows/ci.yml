@@ -97,9 +97,8 @@ jobs:
           EOL
 
           # Удаляем существующие контейнеры
-          # Полная остановка и очистка
           docker-compose -f docker-compose.prod.yml down --remove-orphans --volumes --timeout 1 || true
-          docker rm -f $(docker ps -aq --filter name=app-) || true  # Удаляем ТОЛЬКО контейнеры приложения
+          docker rm -f $(docker ps -aq --filter name=app-) || true
           docker network prune -f || true
 
           # Запуск с ожиданием БД
@@ -109,8 +108,10 @@ jobs:
           # Запуск остальных сервисов
           docker-compose -f docker-compose.prod.yml up -d
 
-          # Проверка
+          # Проверка состояния контейнеров
           sleep 10
           docker-compose ps
-          docker-compose logs --tail=20
+
+          # Проверка логов для диагностики
+          docker-compose logs web
           EOF
