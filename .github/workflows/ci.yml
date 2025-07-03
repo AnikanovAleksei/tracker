@@ -80,13 +80,13 @@ jobs:
       - name: Deploy application
         run: |
           ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USER }}@${{ secrets.SERVER_IP }} << 'EOF'
-          set -e
+          set -ex
           cd /app
 
-        
+          # Создаем .env файл
           cat > .env << 'EOL'
           TAG=${{ github.sha }}
-          IMAGE=${{ secrets.DOCKER_HUB_USERNAME }}/myapp  # Полное имя образа
+          IMAGE=${{ secrets.DOCKER_HUB_USERNAME }}/myapp
           DJANGO_SECRET_KEY=${{ secrets.DJANGO_SECRET_KEY }}
           DEBUG=False
           DB_NAME=${{ secrets.DB_NAME }}
@@ -96,13 +96,18 @@ jobs:
           DB_PORT=5432
           EOL
 
-          
-          echo ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }} | docker login -u ${{ secrets.DOCKER_HUB_USERNAME }} --password-stdin
-          docker-compose -f docker-compose.prod.yml down --remove-orphans || true
+          # Принудительная очистка
+          docker-compose -f docker-compose.prod.yml down --remove-orphans --volumes || true
           docker network rm app_default || true
-          docker-compose -f docker-compose.prod.yml pull
-          docker-compose -f docker-compose.prod.yml up -d
 
-          sleep 10
-          docker-compose ps
+          # Запуск с ожиданием БД (ключевое изменение!)
+          docker-compose -f docker-compose.prod.yml up -d db redis
+          sleep 10  # Ждем инициализации БД
+
+          # Запуск остальных сервисов
+          docker-compose -f docker-compose.prod.yml up -d web celery celery_beat nginx
+
+          # Проверка логов
+          sleep 5
+          docker-compose logs web --tail=50
           EOF
