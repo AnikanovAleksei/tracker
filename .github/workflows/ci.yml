@@ -97,18 +97,20 @@ jobs:
           EOL
 
           # Удаляем существующие контейнеры
-          docker-compose -f docker-compose.prod.yml down --remove-orphans --volumes || true
-          docker rm -f $(docker ps -aq) || true
-          docker network rm app_default || true
+          # Полная остановка и очистка
+          docker-compose -f docker-compose.prod.yml down --remove-orphans --volumes --timeout 1 || true
+          docker rm -f $(docker ps -aq --filter name=app-) || true  # Удаляем ТОЛЬКО контейнеры приложения
+          docker network prune -f || true
 
           # Запуск с ожиданием БД
           docker-compose -f docker-compose.prod.yml up -d db redis
-          sleep 10  # Ждем инициализации БД
+          sleep 15  # Увеличенное время для инициализации БД
 
           # Запуск остальных сервисов
-          docker-compose -f docker-compose.prod.yml up -d web celery celery_beat nginx
+          docker-compose -f docker-compose.prod.yml up -d
 
-          # Проверка логов
-          sleep 5
-          docker-compose logs web --tail=50
+          # Проверка
+          sleep 10
+          docker-compose ps
+          docker-compose logs --tail=20
           EOF
