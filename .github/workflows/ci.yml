@@ -104,7 +104,11 @@ jobs:
 
           # Явно указываем имя проекта чтобы избежать конфликтов
           COMPOSE_PROJECT_NAME=myapp docker-compose -f docker-compose.prod.yml up -d db redis
-          sleep 15  # Ждем инициализации БД
+          sleep 20  # Ждем инициализации БД
+          
+          # Запуск web только после готовности БД
+          COMPOSE_PROJECT_NAME=myapp docker-compose -f docker-compose.prod.yml run --rm web python manage.py check --database default
+          COMPOSE_PROJECT_NAME=myapp docker-compose -f docker-compose.prod.yml up -d web
 
           # Запуск остальных сервисов
           COMPOSE_PROJECT_NAME=myapp docker-compose -f docker-compose.prod.yml up -d
