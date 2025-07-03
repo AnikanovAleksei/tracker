@@ -96,7 +96,7 @@ jobs:
           DB_PORT=5432
           EOL
 
-          # Удаляем существующие контейнеры
+          # Удаляем существующие контейнеры и сети
           docker-compose -f docker-compose.prod.yml down --remove-orphans --volumes --timeout 1 || true
           docker rm -f $(docker ps -aq) || true
           docker network prune -f || true
