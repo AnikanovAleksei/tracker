@@ -101,12 +101,12 @@ jobs:
           docker rm -f $(docker ps -aq) || true
           docker network prune -f || true
 
-          # Запуск с ожиданием БД
+          # Запуск базы данных и Redis
           docker-compose -f docker-compose.prod.yml up -d db redis
-          sleep 15  # Увеличенное время для инициализации БД
+          sleep 15  # Ждем инициализации БД
 
           # Запуск остальных сервисов
-          docker-compose -f docker-compose.prod.yml up -d
+          docker-compose -f docker-compose.prod.yml up -d web celery celery_beat nginx
 
           # Проверка состояния контейнеров
           sleep 10
