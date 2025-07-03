@@ -1,6 +1,6 @@
-name: Django CI
+name: Django CI/CD Pipeline
 
-on: [ push, pull_request ]
+on: [push, pull_request]
 
 jobs:
   lint:
@@ -33,7 +33,7 @@ jobs:
       - name: Set up python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.13'
+          python-version: '3.11'
 
       - name: Install dependencies
         run: |
@@ -43,6 +43,7 @@ jobs:
       - name: Run tests
         env:
           SECRET_KEY: ${{ secrets.DJANGO_SECRET_KEY }}
+          DEBUG: "False"
         run: python manage.py test
 
   build:
@@ -83,7 +84,7 @@ jobs:
           set -ex
           cd /app
 
-          # Создаем .env файл
+          # Создаем .env файл с обязательными переменными
           cat > .env << 'EOL'
           TAG=${{ github.sha }}
           IMAGE=${{ secrets.DOCKER_HUB_USERNAME }}/myapp
@@ -94,23 +95,37 @@ jobs:
           DB_PASSWORD=${{ secrets.DB_PASSWORD }}
           DB_HOST=db
           DB_PORT=5432
+          REDIS_URL=redis://redis:6379/0
+          ALLOWED_HOSTS=${{ secrets.SERVER_IP }} localhost 127.0.0.1
           EOL
 
-          # Удаляем существующие контейнеры и сети
-          docker-compose -f docker-compose.prod.yml down --remove-orphans --volumes --rmi all || true
+          # Полная очистка предыдущего деплоя
+          docker-compose -f docker-compose.prod.yml down -v --remove-orphans || true
           docker system prune -a -f --volumes || true
+          docker network prune -f || true
 
-          # Запуск базы данных и Redis
+          # Запуск сервисов поэтапно с проверками
           docker-compose -f docker-compose.prod.yml up -d db redis
-          sleep 15  # Ждем инициализации БД
+          
+          # Увеличенное время ожидания инициализации БД
+          echo "Waiting for database to become ready..."
+          for i in {1..30}; do
+            if docker-compose -f docker-compose.prod.yml exec db pg_isready -U ${{ secrets.DB_USER }} -d ${{ secrets.DB_NAME }}; then
+              break
+            fi
+            sleep 2
+          done
 
           # Запуск остальных сервисов
-          docker-compose -f docker-compose.prod.yml up -d
+          docker-compose -f docker-compose.prod.yml up -d web celery celery_beat nginx
+
+          # Дополнительное время для инициализации
+          sleep 15
 
           # Проверка состояния контейнеров
-          sleep 10
-          docker-compose ps
+          docker-compose -f docker-compose.prod.yml ps
 
           # Проверка логов для диагностики
-          docker-compose logs web
+          docker-compose -f docker-compose.prod.yml logs web || true
+          docker-compose -f docker-compose.prod.yml logs db || true
           EOF
