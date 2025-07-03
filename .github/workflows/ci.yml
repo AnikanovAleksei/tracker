@@ -98,7 +98,7 @@ jobs:
 
           # Удаляем существующие контейнеры
           docker-compose -f docker-compose.prod.yml down --remove-orphans --volumes --timeout 1 || true
-          docker rm -f $(docker ps -aq --filter name=app-) || true
+          docker rm -f $(docker ps -aq) || true
           docker network prune -f || true
 
           # Запуск с ожиданием БД
