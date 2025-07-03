@@ -83,7 +83,7 @@ jobs:
           set -e
           cd /app
 
-          # Create .env file (ВАРИАНТ 1)
+        
           cat > .env << 'EOL'
           TAG=${{ github.sha }}
           IMAGE=${{ secrets.DOCKER_HUB_USERNAME }}/myapp  # Полное имя образа
@@ -98,8 +98,8 @@ jobs:
 
           
           echo ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }} | docker login -u ${{ secrets.DOCKER_HUB_USERNAME }} --password-stdin
-          docker network rm app_default || true
           docker-compose -f docker-compose.prod.yml down --remove-orphans || true
+          docker network rm app_default || true
           docker-compose -f docker-compose.prod.yml pull
           docker-compose -f docker-compose.prod.yml up -d
 
