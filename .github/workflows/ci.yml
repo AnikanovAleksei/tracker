@@ -97,16 +97,15 @@ jobs:
           EOL
 
           # Удаляем существующие контейнеры и сети
-          docker-compose -f docker-compose.prod.yml down --remove-orphans --volumes --timeout 1 || true
-          docker rm -f $(docker ps -aq) || true
-          docker network prune -f || true
+          docker-compose -f docker-compose.prod.yml down --remove-orphans --volumes --rmi all || true
+          docker system prune -a -f --volumes || true
 
           # Запуск базы данных и Redis
           docker-compose -f docker-compose.prod.yml up -d db redis
           sleep 15  # Ждем инициализации БД
 
           # Запуск остальных сервисов
-          docker-compose -f docker-compose.prod.yml up -d web celery celery_beat nginx
+          docker-compose -f docker-compose.prod.yml up -d
 
           # Проверка состояния контейнеров
           sleep 10
