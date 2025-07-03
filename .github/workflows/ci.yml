@@ -1,6 +1,11 @@
-name: Django CI
+name: Django CI/CD Pipeline
 
-on: [ push, pull_request ]
+on:
+  push:
+    branches:
+      - main
+      - develop
+      - try
 
 jobs:
   lint:
@@ -42,7 +47,8 @@ jobs:
 
       - name: Run tests
         env:
-          SECRET_KEY: ${{ secrets.DJANGO_SECRET_KEY }}
+          SECRET_KEY: "test_key"
+          DEBUG: "False"
         run: python manage.py test
 
   build:
@@ -63,32 +69,47 @@ jobs:
 
   deploy:
     needs: build
-    runs-on: ubuntu-latest
-
+    runs-on: ubuntu-22.04
     steps:
+      - name: Check out code
+        uses: actions/checkout@v3
+
       - name: Set up SSH
         uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.SSH_KEY }}
 
-      - name: Deploy on server
+      - name: Copy files to server
+        run: |
+          scp -o StrictHostKeyChecking=no docker-compose.prod.yml nginx.conf ${{ secrets.SSH_USER }}@${{ secrets.SERVER_IP }}:/app/
+
+      - name: Deploy application
         run: |
           ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USER }}@${{ secrets.SERVER_IP }} << 'EOF'
-          # Login to Docker Hub on server
-          echo "TAG=${{ github.sha }}" >> .env
-          echo "IMAGE=${{ secrets.DOCKER_HUB_USERNAME }}" >> .env
-          echo "DJANGO_SECRET_KEY=${{ secrets.DJANGO_SECRET_KEY }}" >> .env
-          echo "DEBUG=False" >> .env
-          echo "DOCKER_HUB_ACCESS_TOKEN=${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}" >> .env
-          echo "NAME=${{ secrets.DB_NAME }}" >> .env
-          echo "DB_USER=${{ secrets.DB_USER }}" >> .env
-          echo "PASSWORD=${{ secrets.DB_PASSWORD }}" >> .env
-          echo "HOST=${{ secrets.DB_HOST }}" >> .env
-          echo "PORT=${{ secrets.DB_PORT }}" >> .env
-        
-          docker compose -f docker-compose.prod.yml pull
-          docker compose -f docker-compose.prod.yml down
-          docker compose -f docker-compose.prod.yml up -d --remove-orphans
-          docker image prune -f
-        
+          set -ex
+          cd /app
+          
+          mv docker-compose.prod.yml docker-compose.yml
+
+          # Создаем .env файл
+          cat > .env << 'EOL'
+          IMAGE=${{ secrets.DOCKER_HUB_USERNAME }}/myapp:${{ github.sha }}
+          BOT_TOKEN=${{ secrets.TG_BOT_TOKEN }}
+          SECRET_KEY=${{ secrets.DJANGO_SECRET_KEY }}
+          DEBUG=False
+          DB_NAME=${{ secrets.DB_NAME }}
+          DB_USER=${{ secrets.DB_USER }}
+          DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+          DB_HOST=db
+          DB_PORT=5432
+          CELERY_BROKER_URL=redis://redis:6379/0
+          CELERY_RESULT_BACKEND=redis://redis:6379/0
+          EOL
+          
+          docker-compose pull
+          docker-compose up -d --wait
+          
+          docker system prune -a -f --volumes || true
+          
           EOF
+          
