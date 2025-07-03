@@ -65,12 +65,19 @@ jobs:
     needs: build
     runs-on: ubuntu-22.04
     steps:
+      - name: Check out code
+        uses: actions/checkout@v3
+
       - name: Set up SSH
         uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.SSH_KEY }}
 
-      - name: Copy docker-compose.prod.yml to server
+      - name: Create app directory on server
+        run: |
+          ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USER }}@${{ secrets.SERVER_IP }} "mkdir -p /app"
+
+      - name: Copy files to server
         run: |
           scp -o StrictHostKeyChecking=no docker-compose.prod.yml ${{ secrets.SSH_USER }}@${{ secrets.SERVER_IP }}:/app/docker-compose.prod.yml
 
@@ -78,12 +85,7 @@ jobs:
         run: |
           ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USER }}@${{ secrets.SERVER_IP }} << 'EOF'
           set -e
-
-          # Переход в рабочий каталог
           cd /app
-
-          # Проверка, что файл скопирован
-          ls -la /app/docker-compose.prod.yml
 
           # Создание .env файла
           cat > .env << 'EOL'
@@ -91,11 +93,11 @@ jobs:
           IMAGE=${{ secrets.DOCKER_HUB_USERNAME }}
           DJANGO_SECRET_KEY=${{ secrets.DJANGO_SECRET_KEY }}
           DEBUG=False
-          NAME=${{ secrets.DB_NAME }}
+          DB_NAME=${{ secrets.DB_NAME }}
           DB_USER=${{ secrets.DB_USER }}
-          PASSWORD=${{ secrets.DB_PASSWORD }}
-          HOST=${{ secrets.DB_HOST }}
-          PORT=${{ secrets.DB_PORT }}
+          DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+          DB_HOST=db
+          DB_PORT=5432
           EOL
 
           echo ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }} | docker login -u ${{ secrets.DOCKER_HUB_USERNAME }} --password-stdin
