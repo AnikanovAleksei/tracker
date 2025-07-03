@@ -73,26 +73,48 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.SSH_KEY }}
 
-      - name: Create app directory on server
+      - name: Create app directory structure on server
         run: |
-          ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USER }}@${{ secrets.SERVER_IP }} "mkdir -p /app"
+          ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USER }}@${{ secrets.SERVER_IP }} << 'EOF'
+          set -e
+          mkdir -p /app/etc/nginx
+          mkdir -p /app/static_files
+          EOF
 
-      - name: Copy files to server
+      - name: Copy compose file to server
         run: |
           scp -o StrictHostKeyChecking=no docker-compose.prod.yml ${{ secrets.SSH_USER }}@${{ secrets.SERVER_IP }}:/app/docker-compose.prod.yml
 
-      - name: Copy nginx.conf to server
+      - name: Copy nginx configuration
         run: |
-          scp -o StrictHostKeyChecking=no nginx.conf ${{ secrets.SSH_USER }}@${{ secrets.SERVER_IP }}:/app/nginx.conf
-      
+          scp -o StrictHostKeyChecking=no nginx.conf ${{ secrets.SSH_USER }}@${{ secrets.SERVER_IP }}:/app/etc/nginx/nginx.conf
 
-      - name: Deploy on server
+      - name: Verify files on server
+        run: |
+          ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USER }}@${{ secrets.SERVER_IP }} << 'EOF'
+          set -e
+          echo "Checking files:"
+          ls -la /app
+          ls -la /app/etc/nginx
+          test -f /app/docker-compose.prod.yml || exit 1
+          test -f /app/etc/nginx/nginx.conf || exit 1
+          EOF
+
+      - name: Update compose file paths
+        run: |
+          ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USER }}@${{ secrets.SERVER_IP }} << 'EOF'
+          set -e
+          sed -i 's|\./nginx\.conf|/app/etc/nginx/nginx.conf|g' /app/docker-compose.prod.yml
+          sed -i 's|\./static_volume|/app/static_files|g' /app/docker-compose.prod.yml
+          EOF
+
+      - name: Deploy application
         run: |
           ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USER }}@${{ secrets.SERVER_IP }} << 'EOF'
           set -e
           cd /app
 
-          # Создание .env файла
+          # Create .env file
           cat > .env << 'EOL'
           TAG=${{ github.sha }}
           IMAGE=${{ secrets.DOCKER_HUB_USERNAME }}
@@ -105,6 +127,7 @@ jobs:
           DB_PORT=5432
           EOL
 
+          # Login and deploy
           echo ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }} | docker login -u ${{ secrets.DOCKER_HUB_USERNAME }} --password-stdin
           docker-compose -f /app/docker-compose.prod.yml pull
           docker-compose -f /app/docker-compose.prod.yml down
