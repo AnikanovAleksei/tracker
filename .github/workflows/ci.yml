@@ -86,7 +86,7 @@ jobs:
           # Create .env file
           cat > .env << 'EOL'
           TAG=${{ github.sha }}
-          IMAGE=${{ secrets.DOCKER_HUB_USERNAME }}/myapp
+          IMAGE=${{ secrets.DOCKER_HUB_USERNAME }}/myapp  # Важно: без повторного /myapp!
           DJANGO_SECRET_KEY=${{ secrets.DJANGO_SECRET_KEY }}
           DEBUG=False
           DB_NAME=${{ secrets.DB_NAME }}
@@ -99,11 +99,11 @@ jobs:
           # Docker operations
           echo ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }} | docker login -u ${{ secrets.DOCKER_HUB_USERNAME }} --password-stdin
           docker-compose -f docker-compose.prod.yml down --remove-orphans || true
-          docker-compose -f docker-compose.prod.yml pull
+          docker-compose -f docker-compose.prod.yml pull || true  # Добавил обработку ошибки
           docker-compose -f docker-compose.prod.yml up -d
 
           # Verify
           sleep 10
           docker-compose ps
-          docker-compose logs nginx --tail=50
+          docker-compose logs --tail=50
           EOF
