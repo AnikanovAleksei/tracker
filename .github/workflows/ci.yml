@@ -1,6 +1,11 @@
 name: Django CI/CD Pipeline
 
-on: [push, pull_request]
+on:
+  push:
+    branches:
+      - main
+      - develop
+      - try
 
 jobs:
   lint:
@@ -33,7 +38,7 @@ jobs:
       - name: Set up python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.11'
+          python-version: '3.13'
 
       - name: Install dependencies
         run: |
@@ -42,7 +47,7 @@ jobs:
 
       - name: Run tests
         env:
-          SECRET_KEY: ${{ secrets.DJANGO_SECRET_KEY }}
+          SECRET_KEY: "test_key"
           DEBUG: "False"
         run: python manage.py test
 
@@ -83,40 +88,28 @@ jobs:
           ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USER }}@${{ secrets.SERVER_IP }} << 'EOF'
           set -ex
           cd /app
+          
+          mv docker-compose.prod.yml docker-compose.yml
 
           # Создаем .env файл
           cat > .env << 'EOL'
-          TAG=${{ github.sha }}
-          IMAGE=${{ secrets.DOCKER_HUB_USERNAME }}/myapp
-          DJANGO_SECRET_KEY=${{ secrets.DJANGO_SECRET_KEY }}
+          IMAGE=${{ secrets.DOCKER_HUB_USERNAME }}/myapp:${{ github.sha }}
+          BOT_TOKEN=${{ secrets.TG_BOT_TOKEN }}
+          SECRET_KEY=${{ secrets.DJANGO_SECRET_KEY }}
           DEBUG=False
           DB_NAME=${{ secrets.DB_NAME }}
           DB_USER=${{ secrets.DB_USER }}
           DB_PASSWORD=${{ secrets.DB_PASSWORD }}
           DB_HOST=db
           DB_PORT=5432
+          CELERY_BROKER_URL=redis://redis:6379/0
+          CELERY_RESULT_BACKEND=redis://redis:6379/0
           EOL
-
-          # Полная очистка предыдущего деплоя с удалением сети
-          docker-compose -f docker-compose.prod.yml down --remove-orphans --volumes --rmi local || true
-          docker network rm app_default || true
-          docker system prune -a -f --volumes || true
-
-          # Явно указываем имя проекта чтобы избежать конфликтов
-          COMPOSE_PROJECT_NAME=myapp docker-compose -f docker-compose.prod.yml up -d db redis
-          sleep 20  # Ждем инициализации БД
           
-          # Запуск web только после готовности БД
-          COMPOSE_PROJECT_NAME=myapp docker-compose -f docker-compose.prod.yml run --rm web python manage.py check --database default
-          COMPOSE_PROJECT_NAME=myapp docker-compose -f docker-compose.prod.yml up -d web
-
-          # Запуск остальных сервисов
-          COMPOSE_PROJECT_NAME=myapp docker-compose -f docker-compose.prod.yml up -d
-
-          # Проверка состояния контейнеров
-          sleep 10
-          COMPOSE_PROJECT_NAME=myapp docker-compose -f docker-compose.prod.yml ps
-
-          # Проверка логов для диагностики
-          COMPOSE_PROJECT_NAME=myapp docker-compose -f docker-compose.prod.yml logs web
+          docker-compose pull
+          docker-compose up -d --wait
+          
+          docker system prune -a -f --volumes || true
+          
           EOF
+          
