@@ -96,11 +96,12 @@ jobs:
           DB_PORT=5432
           EOL
 
-          # Принудительная очистка
+          # Удаляем существующие контейнеры
           docker-compose -f docker-compose.prod.yml down --remove-orphans --volumes || true
+          docker rm -f $(docker ps -aq) || true
           docker network rm app_default || true
 
-          # Запуск с ожиданием БД (ключевое изменение!)
+          # Запуск с ожиданием БД
           docker-compose -f docker-compose.prod.yml up -d db redis
           sleep 10  # Ждем инициализации БД
 
