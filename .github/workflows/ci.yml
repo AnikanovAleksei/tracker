@@ -73,29 +73,30 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.SSH_KEY }}
 
-      - name: Prepare server directory
+      - name: Prepare server environment
         run: |
           ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USER }}@${{ secrets.SERVER_IP }} << 'EOF'
           set -e
+          # Установка jq если отсутствует
+          if ! command -v jq &> /dev/null; then
+            sudo apt-get update && sudo apt-get install -y jq
+          fi
           mkdir -p /app
           rm -f /app/nginx.conf
           EOF
 
-      - name: Copy compose file
+      - name: Copy configuration files
         run: |
-          scp -o StrictHostKeyChecking=no docker-compose.prod.yml ${{ secrets.SSH_USER }}@${{ secrets.SERVER_IP }}:/app/
+          scp -o StrictHostKeyChecking=no docker-compose.prod.yml nginx.conf ${{ secrets.SSH_USER }}@${{ secrets.SERVER_IP }}:/app/
 
-      - name: Copy nginx config
-        run: |
-          scp -o StrictHostKeyChecking=no nginx.conf ${{ secrets.SSH_USER }}@${{ secrets.SERVER_IP }}:/app/
-
-      - name: Cleanup old deployment
+      - name: Cleanup previous deployment
         run: |
           ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USER }}@${{ secrets.SERVER_IP }} << 'EOF'
           set -e
           cd /app
-          docker-compose -f docker-compose.prod.yml down --remove-orphans --volumes || true
-          docker network prune -f || true
+          docker-compose -f docker-compose.prod.yml down --remove-orphans --volumes --timeout 30 || true
+          docker network rm app_default || true
+          docker system prune -af || true
           EOF
 
       - name: Deploy application
@@ -103,7 +104,7 @@ jobs:
           ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USER }}@${{ secrets.SERVER_IP }} << 'EOF'
           set -e
           cd /app
-          
+
           cat > .env << 'EOL'
           TAG=${{ github.sha }}
           IMAGE=${{ secrets.DOCKER_HUB_USERNAME }}
@@ -115,7 +116,7 @@ jobs:
           DB_HOST=db
           DB_PORT=5432
           EOL
-          
+
           echo ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }} | docker login -u ${{ secrets.DOCKER_HUB_USERNAME }} --password-stdin
           docker-compose -f docker-compose.prod.yml pull
           docker-compose -f docker-compose.prod.yml up -d --remove-orphans
@@ -130,5 +131,12 @@ jobs:
           echo "=== Networks ==="
           docker network ls
           echo "=== Nginx status ==="
-          docker inspect $(docker ps -qf "name=nginx") | jq -r '.[0].State.Status'
+          if docker ps | grep -q nginx; then
+            docker inspect $(docker ps -qf "name=nginx") | grep -A 5 Status
+          else
+            echo "Nginx container not found!"
+            exit 1
+          fi
+          echo "=== Health checks ==="
+          docker ps --filter "health=healthy" --format "table {{.Names}}\t{{.Status}}"
           EOF
