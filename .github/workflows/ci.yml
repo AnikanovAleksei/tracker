@@ -75,42 +75,36 @@ jobs:
 
       - name: Create app directory on server
         run: |
-          ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USER }}@${{ secrets.SERVER_IP }} "mkdir -p /app"
+          ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USER }}@${{ secrets.SERVER_IP }} "mkdir -p /app && rm -rf /app/nginx.conf"
 
-      - name: Copy files to server
+      - name: Copy compose file to server
         run: |
           scp -o StrictHostKeyChecking=no docker-compose.prod.yml ${{ secrets.SSH_USER }}@${{ secrets.SERVER_IP }}:/app/docker-compose.prod.yml
 
-      - name: Verify nginx.conf exists locally
+      - name: Copy nginx.conf to server
         run: |
+          # Сначала проверяем что файл существует локально
           if [ ! -f "nginx.conf" ]; then
-            echo "nginx.conf not found in repository!"
+            echo "Error: nginx.conf not found in repository!"
             exit 1
           fi
 
-      - name: Copy nginx.conf to server
-        run: |
+          # Копируем на сервер
           scp -o StrictHostKeyChecking=no nginx.conf ${{ secrets.SSH_USER }}@${{ secrets.SERVER_IP }}:/app/nginx.conf
 
-      # Новый шаг: Проверка и очистка старых контейнеров
-      - name: Cleanup old containers
-        run: |
-          ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USER }}@${{ secrets.SERVER_IP }} << 'EOF'
-          set -e
-          cd /app
-          docker-compose -f docker-compose.prod.yml down --remove-orphans || true
-          EOF
-
-      # Новый шаг: Проверка файлов на сервере
       - name: Verify server files
         run: |
           ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USER }}@${{ secrets.SERVER_IP }} << 'EOF'
           set -e
           echo "Server files:"
           ls -la /app
-          test -f /app/docker-compose.prod.yml || { echo "docker-compose.prod.yml missing!"; exit 1; }
-          test -f /app/nginx.conf || { echo "nginx.conf missing!"; exit 1; }
+          echo "nginx.conf content:"
+          cat /app/nginx.conf || { echo "Failed to read nginx.conf"; exit 1; }
           EOF
+
+      - name: Cleanup old containers
+        run: |
+          ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USER }}@${{ secrets.SERVER_IP }} "cd /app && docker-compose -f docker-compose.prod.yml down --remove-orphans || true"
 
       - name: Deploy application
         run: |
@@ -131,20 +125,12 @@ jobs:
           DB_PORT=5432
           EOL
 
-          # Логинимся и запускаем
+          # Запускаем сервисы
           echo ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }} | docker login -u ${{ secrets.DOCKER_HUB_USERNAME }} --password-stdin
           docker-compose -f docker-compose.prod.yml pull
           docker-compose -f docker-compose.prod.yml up -d --remove-orphans
-          docker image prune -f
           EOF
 
-      # Новый шаг: Проверка работы контейнеров
       - name: Verify deployment
         run: |
-          ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USER }}@${{ secrets.SERVER_IP }} << 'EOF'
-          set -e
-          echo "Running containers:"
-          docker ps
-          echo "Nginx logs:"
-          docker logs $(docker ps -qf "name=nginx") --tail 20
-          EOF
+          ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USER }}@${{ secrets.SERVER_IP }} "docker ps && docker-compose -f /app/docker-compose.prod.yml ps"
